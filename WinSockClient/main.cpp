@@ -9,14 +9,16 @@
 #include <iphlpapi.h>
 #include <stdio.h>
 #include <iostream>
+#include <FormatLastError.h>
+
 using namespace std;
 
 #pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "FormatLastError.lib")
 
 #define DEFAULT_PORT "27015"
 
-LPSTR FormatLastError(DWORD dwMessageID);
-VOID PrintLastError(DWORD dwMessageID);
+
 
 void main() {
 	setlocale(LC_ALL, "Russian");
@@ -89,26 +91,3 @@ void main() {
 	WSACleanup();
 }
 
-LPSTR FormatLastError(DWORD dwMessageID) {
-	LPSTR szBuffer = NULL;
-	FormatMessage(
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		dwMessageID,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_RUSSIAN_RUSSIA),
-		(LPSTR)&szBuffer,
-		0,
-		NULL
-	);
-	//printf("Error: %i: %s", dwMessageID, szBuffer);
-	//cout << szBuffer << endl;
-	//LocalFree(szBuffer);
-	return szBuffer;
-}
-
-VOID PrintLastError(DWORD dwMessageID) {
-	//DWORD dwMessageID = WSAGetLastError();
-	LPSTR szMessage = FormatLastError(dwMessageID);
-	printf("Error: %i: %s", dwMessageID, szMessage);
-	LocalFree(szMessage);
-}
