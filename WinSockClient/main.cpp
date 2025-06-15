@@ -17,7 +17,7 @@ using namespace std;
 #pragma comment(lib, "FormatLastError.lib")
 
 #define DEFAULT_PORT "27015"
-
+#define DEFAULT_BUFFER_LENGTH 1500
 
 
 void main() {
@@ -32,7 +32,7 @@ void main() {
 		return;
 	}
 
-	//Создаем сокент клиента
+	//Определяем IP-адрес сервера
 	addrinfo* result = NULL;
 	addrinfo hints;
 	ZeroMemory(&hints, sizeof(hints));
@@ -40,7 +40,6 @@ void main() {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 
-	//Определяем IP-адрес сервера
 	iResult = getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &result);
 	if (iResult) {
 		cout << "getaddressinfo() failed with code: " << iResult << endl;
@@ -50,6 +49,7 @@ void main() {
 	//cout << "hints: " << endl;
 	//cout << "ai_addr: " << hints.ai_addr->sa_data << endl;
 
+	//Создаем сокент клиента
 	SOCKET connect_socket = socket(hints.ai_family, hints.ai_socktype, hints.ai_protocol);
 	if (connect_socket == INVALID_SOCKET) {
 		DWORD dwMessageID = WSAGetLastError();
@@ -85,9 +85,39 @@ void main() {
 		closesocket(connect_socket);
 		freeaddrinfo(result);
 		WSACleanup();
+		return;
 	}
 
+	//Отправка и получение данных с сервера
+	CONST CHAR sendbuffer[] = "Hello server, I'm client";
+	CHAR recvbuffer[DEFAULT_BUFFER_LENGTH] = {};
+	iResult = send(connect_socket, sendbuffer, sizeof(sendbuffer), 0);
+	if (iResult == SOCKET_ERROR) {
+		PrintLastError(WSAGetLastError());
+		closesocket(connect_socket);
+		freeaddrinfo(result);
+		WSACleanup();
+		return;
+	}
+	do {
+		iResult = recv(connect_socket, recvbuffer, DEFAULT_BUFFER_LENGTH, 0);
+		if (iResult > 0) {
+			cout << "Recived bytes: " << iResult << ", Message: " << recvbuffer << endl;
+		}
+		else if (iResult == 0) {
+			cout << "Connection closing" << endl;
+		}
+		else PrintLastError(WSAGetLastError());
+	} while (iResult > 0);
+
+	//Закрываем соединение
+	iResult = shutdown(connect_socket, SD_SEND);
+	if (iResult == SOCKET_ERROR) {
+		PrintLastError(WSAGetLastError());
+	}
 	//Освобождаем ресурсы винсок
+	closesocket(connect_socket);
+	freeaddrinfo(result);
 	WSACleanup();
 }
 
