@@ -9,6 +9,8 @@
 #include<stdio.h>
 #include<iostream>
 #include<FormatLastError.h>
+#include<fcntl.h>
+
 
 using namespace std;
 
@@ -54,6 +56,20 @@ void main() {
 		freeaddrinfo(result);
 		WSACleanup();
 	}
+
+
+	//Перевод сокета в неблокирующий режим
+	u_long iMode = 0;
+	iResult = ioctlsocket(listen_socket, FIONBIO, &iMode);
+	if (iResult == SOCKET_ERROR) {
+		cout << "ioctlsocket() failed with ";
+		PrintLastError(WSAGetLastError());
+		closesocket(listen_socket);
+		freeaddrinfo(result);
+		WSACleanup();
+		return;
+	}
+	HWND cmdHwnd = GetConsoleWindow();
 
 	//BindSocket связываем сокет с целевым IP и портом
 	iResult = bind(listen_socket, result->ai_addr, result->ai_addrlen);
