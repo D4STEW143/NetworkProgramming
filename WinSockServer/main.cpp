@@ -89,12 +89,34 @@ void main() {
 		return;
 	}
 
+	/*
+	Функция getpeername() записывает в структуру sockaddr_in данные о IP и порте клиента
+	в поля sin_addr и sin_port. Функцией inet_top() преобразуем IPv4 в строку, а ntohs()
+	преобразует порт в ushort. Форматирование выходной строки происходит на этапе вывода
+	информации на экран в пунке получение и отправка данных.
+	*/
+	sockaddr_in client_addr;
+	int client_addr_size = sizeof(client_addr);
+	iResult = getpeername(client_socket, (sockaddr*)&client_addr, &client_addr_size);
+	if (iResult == SOCKET_ERROR) {
+		PrintLastError(WSAGetLastError());
+		closesocket(listen_socket);
+		closesocket(client_socket);
+		freeaddrinfo(result);
+		WSACleanup();
+		return;
+	}
+	char client_IP[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(client_addr.sin_addr), client_IP, INET_ADDRSTRLEN);
+	u_short client_port = ntohs(client_addr.sin_port);
+
 	//Получение и отправка данных
 	CHAR recvbuffer[DEFALT_BUFFER_LENGTH] = {};
 	do {
 		iResult = recv(client_socket, recvbuffer, DEFALT_BUFFER_LENGTH, 0);
 		if (iResult > 0) {
-			cout << "Received bytes: " << iResult << ", Message: " << recvbuffer << endl;
+			printf("Recived %i bytes from %s:%u. Message: \"%s\"\n", iResult, client_IP, client_port, recvbuffer);
+			//cout << "Received bytes: " << iResult << ", Message: " << recvbuffer << endl;
 			if (send(client_socket, recvbuffer, strlen(recvbuffer), 0) == SOCKET_ERROR) {
 				cout << "send() failed with";
 				PrintLastError(WSAGetLastError());
