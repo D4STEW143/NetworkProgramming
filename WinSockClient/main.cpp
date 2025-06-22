@@ -19,6 +19,8 @@ using namespace std;
 #define DEFAULT_PORT "27015"
 #define DEFAULT_BUFFER_LENGTH 1500
 
+CONST CHAR g_OVERFLOW[DEFAULT_BUFFER_LENGTH] = "Too many connections. Try again later.";
+
 
 void main() {
 	setlocale(LC_ALL, "Russian");
@@ -93,7 +95,7 @@ void main() {
 	CHAR recvbuffer[DEFAULT_BUFFER_LENGTH] = {};
 
 	do {
-		iResult = send(connect_socket, sendbuffer, sizeof(sendbuffer), 0);
+		iResult = send(connect_socket, sendbuffer, strlen(sendbuffer), 0);
 		if (iResult == SOCKET_ERROR) {
 			PrintLastError(WSAGetLastError());
 			closesocket(connect_socket);
@@ -114,7 +116,13 @@ void main() {
 		}
 		else PrintLastError(WSAGetLastError());
 
+		if (strcmp(recvbuffer, g_OVERFLOW) == 0){
+			system("PAUSE");
+			break;
+		}
 		SetConsoleCP(1251);
+		ZeroMemory(sendbuffer, DEFAULT_BUFFER_LENGTH);
+		ZeroMemory(recvbuffer, DEFAULT_BUFFER_LENGTH);
 		cout << "¬ведите сообщение: "; cin.getline(sendbuffer, DEFAULT_BUFFER_LENGTH);
 		SetConsoleCP(866);
 	} while (iResult > 0 && strcmp(sendbuffer, "exit"));
@@ -131,5 +139,9 @@ void main() {
 	closesocket(connect_socket);
 	freeaddrinfo(result);
 	WSACleanup();
+}
+
+VOID Reecieve(SOCKET client_socket) {
+
 }
 

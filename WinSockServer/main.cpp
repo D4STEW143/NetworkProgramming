@@ -20,6 +20,14 @@ using namespace std;
 #define DEFAULT_PORT "27015"
 #define DEFALT_BUFFER_LENGTH 1500
 
+CONST CHAR g_OVERFLOW[DEFALT_BUFFER_LENGTH] = "Too many connections. Try again later.";
+CONST INT MAX_CONNECTIONS = 3;
+SOCKET sockets[MAX_CONNECTIONS] = {};
+DWORD dwTreadsIds[MAX_CONNECTIONS] = {};
+HANDLE hTreads[MAX_CONNECTIONS] = {};
+
+VOID ClientHandler(SOCKET client_socket);
+
 void main() {
 	setlocale(LC_ALL, "Russian");
 
@@ -94,49 +102,93 @@ void main() {
 	}
 
 	//Принимаем запросы на соединение от клиентов
+
+	INT i = 0;
 	cout << "Waiting for client..." << endl;
-	SOCKET client_socket = accept(listen_socket, NULL, NULL);
-	if (client_socket == INVALID_SOCKET) {
-		cout << "accpet() failed with";
-		PrintLastError(WSAGetLastError());
-		closesocket(listen_socket);
-		freeaddrinfo(result);
-		WSACleanup();
-		return;
-	}
+	do
+	{
 
-	/*
-	Функция getpeername() записывает в структуру sockaddr_in данные о IP и порте клиента
-	в поля sin_addr и sin_port. Функцией inet_top() преобразуем IPv4 в строку, а ntohs()
-	преобразует порт в ushort. Форматирование выходной строки происходит на этапе вывода
-	информации на экран в пунке получение и отправка данных.
-	*/
-	sockaddr_in client_addr;
-	int client_addr_size = sizeof(client_addr);
-	iResult = getpeername(client_socket, (sockaddr*)&client_addr, &client_addr_size);
-	if (iResult == SOCKET_ERROR) {
-		PrintLastError(WSAGetLastError());
-		closesocket(listen_socket);
-		closesocket(client_socket);
-		freeaddrinfo(result);
-		WSACleanup();
-		return;
-	}
-	char client_IP[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(client_addr.sin_addr), client_IP, INET_ADDRSTRLEN);
-	u_short client_port = ntohs(client_addr.sin_port);
+		SOCKET client_socket = accept(listen_socket, NULL, NULL);
+		if (client_socket == INVALID_SOCKET) {
+			cout << "accpet() failed with";
+			PrintLastError(WSAGetLastError());
+			closesocket(listen_socket);
+			freeaddrinfo(result);
+			WSACleanup();
+			return;
+		}
 
+		/*
+		Функция getpeername() записывает в структуру sockaddr_in данные о IP и порте клиента
+		в поля sin_addr и sin_port. Функцией inet_top() преобразуем IPv4 в строку, а ntohs()
+		преобразует порт в ushort. Форматирование выходной строки происходит на этапе вывода
+		информации на экран в пунке получение и отправка данных.
+		sockaddr_in client_addr;
+		int client_addr_size = sizeof(client_addr);
+		iResult = getpeername(client_socket, (sockaddr*)&client_addr, &client_addr_size);
+		if (iResult == SOCKET_ERROR) {
+			PrintLastError(WSAGetLastError());
+			closesocket(listen_socket);
+			closesocket(client_socket);
+			freeaddrinfo(result);
+			WSACleanup();
+			return;
+		}
+		char client_IP[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &(client_addr.sin_addr), client_IP, INET_ADDRSTRLEN);
+		u_short client_port = ntohs(client_addr.sin_port);*/
+		if (i < MAX_CONNECTIONS) {
+			sockets[i] = client_socket;
+			hTreads[i] = CreateThread(
+				NULL,
+				0,
+				(LPTHREAD_START_ROUTINE)ClientHandler,
+				(LPVOID)sockets[i],
+				0,
+				&dwTreadsIds[i]
+			);
+			i++;
+		}
+		else {
+
+			CHAR recv_buffer[DEFALT_BUFFER_LENGTH] = {};
+			INT iResult = recv(client_socket, recv_buffer, DEFALT_BUFFER_LENGTH, 0);
+			cout << "Extra client sends: " << recv_buffer << endl;
+			send(client_socket, g_OVERFLOW, strlen(g_OVERFLOW), 0);
+			closesocket(client_socket);
+		}
+		//ClientHandler(client_socket);
+	} while (true);
+	//Освобождение ресурсов Винсок
+	WaitForMultipleObjects(MAX_CONNECTIONS, hTreads, TRUE, INFINITE);
+	for (int i = 0; i < MAX_CONNECTIONS; i++) {
+		CloseHandle(hTreads[i]);
+		closesocket(sockets[i]);
+	}
+	closesocket(listen_socket);
+	freeaddrinfo(result);
+	WSACleanup();
+}
+
+VOID ClientHandler(SOCKET client_socket) {
 	//Получение и отправка данных
+	INT iResult = 0;
 	CHAR recvbuffer[DEFALT_BUFFER_LENGTH] = {};
 	do {
 		iResult = recv(client_socket, recvbuffer, DEFALT_BUFFER_LENGTH, 0);
 		if (iResult > 0) {
-			printf("Recived %i bytes from %s:%u. Message: \"%s\"\n", iResult, client_IP, client_port, recvbuffer);
-			//cout << "Received bytes: " << iResult << ", Message: " << recvbuffer << endl;
-			if (send(client_socket, recvbuffer, strlen(recvbuffer), 0) == SOCKET_ERROR) {
-				cout << "send() failed with";
-				PrintLastError(WSAGetLastError());
-				break;
+			//printf("Recived %i bytes from %s:%u. Message: \"%s\"\n", iResult, client_IP, client_port, recvbuffer);
+			cout << "Received bytes: " << iResult << ", Message: " << recvbuffer << endl;
+			for (int i = 0; i < MAX_CONNECTIONS; i++)
+			{
+				if (sockets[i])
+				{
+					if (send(sockets[i], recvbuffer, strlen(recvbuffer), 0) == SOCKET_ERROR) {
+						cout << "send() failed with";
+						PrintLastError(WSAGetLastError());
+						break;
+					}
+				}
 			}
 		}
 		else if (iResult == 0) {
@@ -146,11 +198,8 @@ void main() {
 			cout << "recv() failed with";
 			PrintLastError(WSAGetLastError());
 		}
-	} while(iResult>0);
+		ZeroMemory(recvbuffer, DEFALT_BUFFER_LENGTH);
+	} while (iResult > 0);
 
-	//Освобождение ресурсов Винсок
 	closesocket(client_socket);
-	closesocket(listen_socket);
-	freeaddrinfo(result);
-	WSACleanup();
 }
